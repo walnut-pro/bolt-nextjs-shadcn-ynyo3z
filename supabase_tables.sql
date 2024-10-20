@@ -6,7 +6,7 @@ CREATE TABLE quizzes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   status TEXT NOT NULL,
-  current_question INT NOT NULL DEFAULT 0
+  current_question UUID -- ここを INT から UUID に変更
 );
 
 -- Create questions table

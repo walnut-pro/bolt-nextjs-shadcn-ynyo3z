@@ -28,41 +28,100 @@ export default function CreateQuiz() {
   }
 
   const createQuiz = async () => {
-    const { data: quiz, error: quizError } = await supabase
-      .from('quizzes')
-      .insert({ name: quizName, status: 'waiting', current_question: 0 })
-      .select()
-      .single()
+    console.log('クイズ作成開始');
+    console.log('クイズ名:', quizName);
+    console.log('質問数:', questions.length);
 
-    if (quizError) {
-      console.error('Error creating quiz:', quizError)
-      return
-    }
-
-    for (const question of questions) {
-      const { data: questionData, error: questionError } = await supabase
-        .from('questions')
-        .insert({ quiz_id: quiz.id, question_text: question.text, correct_answer: question.correctAnswer })
+    try {
+      // まず、クイズを作成します
+      const { data: quiz, error: quizError } = await supabase
+        .from('quizzes')
+        .insert({ name: quizName, status: 'waiting' })
         .select()
         .single()
 
-      if (questionError) {
-        console.error('Error creating question:', questionError)
-        continue
+      if (quizError) {
+        console.error('クイズ作成エラー:', quizError)
+        return
       }
 
-      for (const option of question.options) {
-        const { error: optionError } = await supabase
-          .from('options')
-          .insert({ question_id: questionData.id, option_text: option })
+      console.log('クイズ作成成功:', quiz);
 
-        if (optionError) {
-          console.error('Error creating option:', optionError)
+      // 最初の質問を作成し、そのIDをcurrent_questionとして設定します
+      if (questions.length > 0) {
+        console.log('最初の質問を作成中');
+        const { data: firstQuestion, error: firstQuestionError } = await supabase
+          .from('questions')
+          .insert({ quiz_id: quiz.id, question_text: questions[0].text, correct_answer: questions[0].correctAnswer })
+          .select()
+          .single()
+
+        if (firstQuestionError) {
+          console.error('最初の質問作成エラー:', firstQuestionError)
+        } else {
+          console.log('最初の質問作成成功:', firstQuestion);
+
+          // クイズのcurrent_questionを更新します
+          const { error: updateError } = await supabase
+            .from('quizzes')
+            .update({ current_question: firstQuestion.id })
+            .eq('id', quiz.id)
+
+          if (updateError) {
+            console.error('クイズ更新エラー:', updateError)
+          } else {
+            console.log('クイズのcurrent_question更新成功');
+          }
         }
-      }
-    }
 
-    router.push(`/admin/manage/${quiz.id}`)
+        // 最初の質問のオプションを作成します
+        console.log('最初の質問のオプションを作成中');
+        for (const option of questions[0].options) {
+          const { error: optionError } = await supabase
+            .from('options')
+            .insert({ question_id: firstQuestion.id, option_text: option })
+
+          if (optionError) {
+            console.error('オプション作成エラー:', optionError)
+          }
+        }
+        console.log('最初の質問のオプション作成完了');
+      }
+
+      // 残りの質問とオプションを作成します
+      console.log('残りの質問とオプションを作成中');
+      for (let i = 1; i < questions.length; i++) {
+        const question = questions[i]
+        const { data: questionData, error: questionError } = await supabase
+          .from('questions')
+          .insert({ quiz_id: quiz.id, question_text: question.text, correct_answer: question.correctAnswer })
+          .select()
+          .single()
+
+        if (questionError) {
+          console.error(`質問${i+1}作成エラー:`, questionError)
+          continue
+        }
+
+        console.log(`質問${i+1}作成成功:`, questionData);
+
+        for (const option of question.options) {
+          const { error: optionError } = await supabase
+            .from('options')
+            .insert({ question_id: questionData.id, option_text: option })
+
+          if (optionError) {
+            console.error(`質問${i+1}のオプション作成エラー:`, optionError)
+          }
+        }
+        console.log(`質問${i+1}のオプション作成完了`);
+      }
+
+      console.log('クイズ作成完了。管理ページへ遷移します。');
+      router.push(`/admin/manage/${quiz.id}`)
+    } catch (error) {
+      console.error('予期せぬエラーが発生しました:', error);
+    }
   }
 
   return (
